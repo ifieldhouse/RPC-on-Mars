@@ -1,6 +1,6 @@
+import pickle
 from socket import socket, SocketType
 from threading import Thread
-import pickle
 from datetime import datetime
 from collections import deque, defaultdict
 
@@ -43,10 +43,13 @@ class Server:
         client.send(ans)
 
     def add(self, msg):
-        return msg['a'] + msg['b']
+        result = msg['a'] + msg['b']
+
+        return {'ok': True, 'data': result}
 
     def get_logs(self):
-        return '\n'.join(self.log)
+        result = self.log
+        return {'ok': True, 'data': result}
 
     def write_to_log(self, client, log, msg):
         timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
@@ -56,10 +59,12 @@ class Server:
         record = f'[{timestamp}] {handle}: {data}'
         log.append(record)
 
+        return {'ok': True}
+
     def write_to_my_log(self, client, msg):
         self.write_to_log(client, self.log, msg)
 
-        return True
+        return {'ok': True}
 
     def write_to_client_log(self, client, msg):
         user = msg['user']
@@ -70,9 +75,9 @@ class Server:
             log = self.client_logs[addr]
             self.write_to_log(client, log, msg)
 
-            return True
+            return {'ok': True}
 
-        return False
+        return {'ok': False, 'data': 'This user does not exist.'}
 
     def set_name(self, client, msg):
 
@@ -80,15 +85,17 @@ class Server:
         new = msg['name']
 
         if new in self.names.values():
-            return False
+            return {'ok': False, 'data': 'This name already exists.'}
 
         self.names[client] = new
         self.addresses_by_name[new] = self.addresses_by_name.pop(old, client)
 
-        return True
+        return {'ok': True}
 
     def get_users(self):
-        return '\n'.join(self.names[client] for client in self.names)
+        users = [self.names[client] for client in self.names]
+
+        return {'ok': True, 'data': users}
 
     def get_my_logs(self, msg):
         user = msg['user']
@@ -96,10 +103,7 @@ class Server:
         addr = self.addresses_by_name[user]
         logs = self.client_logs[addr] if user in self.addresses_by_name else 'NOT FOUND'
 
-        ans = '\n'.join(logs)
-        print(ans)
-
-        return ans
+        return {'ok': True, 'data': logs}
 
     def handle_client(self, client):
         while True:

@@ -27,44 +27,58 @@ class RPC:
         msg = pickle.dumps(msg)
         self.state = send_all_data(self.socket, msg)
 
-        if self.state == 1:
-            req = get_all_data(self.socket)
-            return req
-        return None
+    def recv(self):
+        resp = get_all_data(self.socket)
+        return resp['ok'], resp
 
     def add(self, a, b):
-        """Suma a y b"""
-
         msg = {'func': 'add', 'a': a, 'b': b}
-        return self.send(msg)
+        self.send(msg)
+
+        ok, resp = self.recv()
+        return resp['data'] if ok else None
 
     def get_logs(self):
-        """Obtiene los logs de marte"""
-
         msg = {'func': 'get_logs'}
-        return self.send(msg)
+        self.send(msg)
+
+        ok, resp = self.recv()
+        return resp['data'] if ok else None
 
     def write_to_log(self, log):
-        """Escribe en los logs"""
-
         msg = {'func': 'write_to_log', 'log': log}
-        return self.send(msg)
+        self.send(msg)
+
+        ok, _ = self.recv()
+        print('Wrote successfully to log' if ok else 'Could not write to log')
 
     def write_to_client_log(self, target, log):
         msg = {'func': 'write_to_client_log', 'user': target, 'log': log}
-        return self.send(msg)
+        self.send(msg)
+
+        ok, _ = self.recv()
+        print('Wrote successfully to log' if ok else 'Could not write to log')
 
     def set_name(self, name):
         msg = {'func': 'set_name', 'name': name}
-        return self.send(msg)
+        self.send(msg)
+
+        ok, _ = self.recv()
+        print('Changed name successfully' if ok else 'Could not change name')
 
     def get_users(self):
         msg = {'func': 'get_users'}
-        return self.send(msg)
+        self.send(msg)
+
+        ok, resp = self.recv()
+        return resp['data'] if ok else None
 
     def get_my_logs(self, user):
         msg = {'func': 'get_my_logs', 'user': user}
-        return self.send(msg)
+        self.send(msg)
+
+        ok, resp = self.recv()
+        return resp['data'] if ok else None
 
     def __repr__(self):
         text = """
@@ -83,6 +97,7 @@ def get_all_data(socket):
         if len(packet) < 4096:
             break
     data = b"".join(data)
+
     return pickle.loads(data)
 
 

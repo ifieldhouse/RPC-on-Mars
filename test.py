@@ -1,7 +1,7 @@
 from rpc import RPC
 
 
-rpc = RPC(port=30001)
+rpc = RPC()
 username = None
 
 while True:
@@ -20,7 +20,9 @@ while True:
 Escriba su opción: """)
 
     if option == '1':
-        print(rpc.get_logs())
+        logs = rpc.get_logs()
+        for log in logs:
+            print(log)
 
     elif option == '2':
         msg = input('Escribe el mensaje a general: ')
@@ -36,12 +38,14 @@ Escriba su opción: """)
         if username == None:
             print('Usted es anónimo; no tiene mensajes.')
         else:
-            your_logs = rpc.get_my_logs(username)
-            print(your_logs)
+            logs = rpc.get_my_logs(username)
+            for log in logs:
+                print(logs)
 
     elif option == '5':
         users = rpc.get_users()
-        print(users)
+        for user in users:
+            print(user)
 
     elif option == '6':
         target = input('Nombre del destinatario: ')
