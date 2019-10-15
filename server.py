@@ -48,12 +48,17 @@ class Server:
         return {'ok': True, 'data': result}
 
     def get_logs(self):
-        result = self.log
-        return {'ok': True, 'data': result}
+        logs = self.log
+
+        return {'ok': True, 'data': {logs}}
 
     def write_to_log(self, client, log, msg):
         timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-        handle = f'<{self.names[client]}>' if client in self.names else '<anon>'
+
+        if client not in self.names:
+            return {'ok': False, 'data': {'error': 'Anonymous clients can\'t write on the log.'}}
+
+        handle = f'<{self.names[client]}>'
         data = msg['log']
 
         record = f'[{timestamp}] {handle}: {data}'
@@ -61,10 +66,8 @@ class Server:
 
         return {'ok': True}
 
-    def write_to_my_log(self, client, msg):
-        self.write_to_log(client, self.log, msg)
-
-        return {'ok': True}
+    def write_to_server_log(self, client, msg):
+        return self.write_to_log(client, self.log, msg)
 
     def write_to_client_log(self, client, msg):
         user = msg['user']
@@ -73,19 +76,17 @@ class Server:
 
             addr = self.addresses_by_name[user]
             log = self.client_logs[addr]
-            self.write_to_log(client, log, msg)
 
-            return {'ok': True}
+            return self.write_to_log(client, log, msg)
 
-        return {'ok': False, 'data': 'This user does not exist.'}
+        return {'ok': False, 'data': {'error': 'This user doesn\'t exist.'}}
 
     def set_name(self, client, msg):
-
         old = self.names.get(client)
         new = msg['name']
 
         if new in self.names.values():
-            return {'ok': False, 'data': 'This name already exists.'}
+            return {'ok': False, 'data': {'error': 'This name already exists.'}}
 
         self.names[client] = new
         self.addresses_by_name[new] = self.addresses_by_name.pop(old, client)
@@ -97,11 +98,14 @@ class Server:
 
         return {'ok': True, 'data': users}
 
-    def get_my_logs(self, msg):
+    def get_client_logs(self, msg):
         user = msg['user']
-
         addr = self.addresses_by_name[user]
-        logs = self.client_logs[addr] if user in self.addresses_by_name else 'NOT FOUND'
+
+        if user not in self.addresses_by_name:
+            return {'ok': False, 'data': {'error': 'AnonymousUser'}}
+
+        logs = self.client_logs[addr]
 
         return {'ok': True, 'data': logs}
 
@@ -120,7 +124,7 @@ class Server:
                     ans = self.get_logs()
 
                 elif func == 'write_to_log':
-                    ans = self.write_to_my_log(client, msg)
+                    ans = self.write_to_server_log(client, msg)
 
                 elif func == 'write_to_client_log':
                     ans = self.write_to_client_log(client, msg)
@@ -132,7 +136,7 @@ class Server:
                     ans = self.get_users()
 
                 elif func == 'get_my_logs':
-                    ans = self.get_my_logs(msg)
+                    ans = self.get_client_logs(msg)
 
                 self.send(client, ans)
 

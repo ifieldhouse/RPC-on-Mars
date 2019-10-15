@@ -3,6 +3,30 @@ import pickle
 import textwrap
 
 
+class UnavailableLog(Exception):
+    pass
+
+
+class NotExistingUser(Exception):
+    pass
+
+
+class AlreadyExistingName(Exception):
+    pass
+
+
+class UnavailableFunction(Exception):
+    pass
+
+
+class InvalidData(Exception):
+    pass
+
+
+class AnonymousUser(Exception):
+    pass
+
+
 def rpc():
 
     return RPC()
@@ -36,49 +60,74 @@ class RPC:
         self.send(msg)
 
         ok, resp = self.recv()
-        return resp['data'] if ok else None
+        if not ok:
+            raise UnavailableFunction
+
+        return resp['data']
 
     def get_logs(self):
         msg = {'func': 'get_logs'}
         self.send(msg)
 
         ok, resp = self.recv()
-        return resp['data'] if ok else None
+        if not ok:
+            raise UnavailableFunction
+
+        return resp['data']
 
     def write_to_log(self, log):
         msg = {'func': 'write_to_log', 'log': log}
         self.send(msg)
 
-        ok, _ = self.recv()
-        print('Wrote successfully to log' if ok else 'Could not write to log')
+        ok, resp = self.recv()
+        if not ok:
+            e = resp['data']['error']
+            if e == 'UnavailableLog':
+                raise UnavailableLog
 
     def write_to_client_log(self, target, log):
         msg = {'func': 'write_to_client_log', 'user': target, 'log': log}
         self.send(msg)
 
-        ok, _ = self.recv()
-        print('Wrote successfully to log' if ok else 'Could not write to log')
+        ok, resp = self.recv()
+        if not ok:
+            e = resp['resp']['data']
+            if e == 'NotExisingUser':
+                raise NotExistingUser
 
     def set_name(self, name):
         msg = {'func': 'set_name', 'name': name}
         self.send(msg)
 
-        ok, _ = self.recv()
-        print('Changed name successfully' if ok else 'Could not change name')
+        ok, resp = self.recv()
+        if not ok:
+            e = resp['data']['error']
+            if e == 'AlreadyExistingName':
+                raise AlreadyExistingName
 
     def get_users(self):
         msg = {'func': 'get_users'}
         self.send(msg)
 
         ok, resp = self.recv()
-        return resp['data'] if ok else None
+
+        if not ok:
+            raise UnavailableFunction
+
+        return resp['data']
 
     def get_my_logs(self, user):
         msg = {'func': 'get_my_logs', 'user': user}
         self.send(msg)
 
         ok, resp = self.recv()
-        return resp['data'] if ok else None
+
+        if not ok:
+            e = resp['data']['error']
+            if e == 'AnoynmousUser':
+                raise AnonymousUser
+
+        return resp['data']
 
     def __repr__(self):
         text = """
