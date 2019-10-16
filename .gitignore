@@ -1,2 +1,5 @@
+.vscode/
+
+# Python code
 .mypy_cache/
 __pycache__/
