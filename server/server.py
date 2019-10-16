@@ -5,13 +5,14 @@ from socket import socket, SocketType
 from threading import Thread
 from datetime import datetime
 from collections import deque, defaultdict
+from datetime import datetime
 
 
 class UnavailableLog(Exception):
     pass
 
 
-class InvalidData(Exception):
+class InvalidFunction(Exception):
     pass
 
 
@@ -30,13 +31,6 @@ class AlreadyExistingName(Exception):
 class Server:
 
     def __init__(self, host='', port=33000):
-
-        self.addresses = dict()
-        self.log = deque()
-        self.client_logs = defaultdict(deque)
-        self.names = dict()
-        self.addresses_by_name = dict()
-
         ADDR = (host, port)
         self.BUFSIZ = 1024
 
@@ -46,121 +40,37 @@ class Server:
 
         print('Waiting for connection...')
 
-        ACCEPT_THREAD = Thread(target=self.accept_incoming_connections)
+        ACCEPT_THREAD = Thread(target=self.__accept_incoming_connections)
         ACCEPT_THREAD.start()
         ACCEPT_THREAD.join()
 
         self.server.close()
 
-    def accept_incoming_connections(self):
+    def __accept_incoming_connections(self):
         while True:
-            client, client_address = self.server.accept()
+            client, _ = self.server.accept()
             print(f'{client.getpeername()[1]} has connected.')
-            self.addresses[client] = client_address
-            Thread(target=self.handle_client, args=(client,)).start()
+            Thread(target=self.__handle_client, args=(client,)).start()
 
     @staticmethod
-    def send(client, msg):
+    def __send(client, msg):
         ans = pickle.dumps(msg)
         client.send(ans)
 
-    def add(self, msg):
-        result = msg['a'] + msg['b']
-
-        return {'ok': True, 'data': result}
-
-    def get_logs(self):
-        logs = self.log
-
-        return {'ok': True, 'data': logs}
-
-    def write_to_log(self, client, log, msg):
-        timestamp = datetime.now().strftime('%d/%m/%Y %H:%M:%S')
-
-        if client not in self.names:
-            return {'ok': False, 'data': {'error': 'AnonymousUser'}}
-
-        handle = f'<{self.names[client]}>'
-        data = msg['log']
-
-        record = f'[{timestamp}] {handle}: {data}'
-        log.append(record)
-
-        return {'ok': True}
-
-    def write_to_server_log(self, client, msg):
-        return self.write_to_log(client, self.log, msg)
-
-    def write_to_client_log(self, client, msg):
-        user = msg['user']
-        if user in self.addresses_by_name:
-            print(self.addresses_by_name)
-
-            addr = self.addresses_by_name[user]
-            log = self.client_logs[addr]
-
-            return self.write_to_log(client, log, msg)
-
-        return {'ok': False, 'data': {'error': 'AnonymousRecipient'}}
-
-    def set_name(self, client, msg):
-        old = self.names.get(client)
-        new = msg['name']
-
-        if new in self.names.values():
-            return {'ok': False, 'data': {'error': 'AlreadyExistingName'}}
-
-        self.names[client] = new
-        self.addresses_by_name[new] = self.addresses_by_name.pop(old, client)
-
-        return {'ok': True}
-
-    def get_users(self):
-        users = [self.names[client] for client in self.names]
-
-        return {'ok': True, 'data': users}
-
-    def get_client_logs(self, msg):
-        user = msg['user']
-
-        if user not in self.addresses_by_name:
-            return {'ok': False, 'data': {'error': 'AnonymousUser'}}
-
-        addr = self.addresses_by_name[user]
-        logs = self.client_logs[addr]
-
-        return {'ok': True, 'data': logs}
-
-    def handle_client(self, client):
+    def __handle_client(self, client):
         while True:
             try:
                 msg = client.recv(self.BUFSIZ)
                 msg = pickle.loads(msg)
 
-                func = msg['func']
+                func = getattr(self, msg['func'])
 
-                if func == 'add':
-                    ans = self.add(msg)
+                if func is None:
+                    ans = {'ok': False, 'data': {'error': 'InvalidFunction'}}
+                else:
+                    ans = {'ok': True, 'data': func(*msg['data']['args'], **msg['data']['kwargs'])}
 
-                elif func == 'get_logs':
-                    ans = self.get_logs()
-
-                elif func == 'write_to_log':
-                    ans = self.write_to_server_log(client, msg)
-
-                elif func == 'write_to_client_log':
-                    ans = self.write_to_client_log(client, msg)
-
-                elif func == 'set_name':
-                    ans = self.set_name(client, msg)
-
-                elif func == 'get_users':
-                    ans = self.get_users()
-
-                elif func == 'get_my_logs':
-                    ans = self.get_client_logs(msg)
-
-                self.send(client, ans)
+                self.__send(client, ans)
 
             # El cliente se desconectó repentinamente
             except (EOFError, ConnectionResetError):
@@ -168,7 +78,65 @@ class Server:
                 client.close()
                 break
 
+    @staticmethod
+    def add(a: int, b: int) -> int:
+        return a + b
+
+    @staticmethod
+    def mean(*args: list) -> float:
+        return sum(args)/len(args)
+
+    @staticmethod
+    def palindrome(s: str) -> bool:
+        return s == s[::-1]
+
+    @staticmethod
+    def fib(n: int) -> list:
+        def _fib(n):
+            a, b = 1, 1
+            for _ in range(n):
+                yield a
+                a, b = b, a + b
+
+        return list(_fib(n))
+
+    @staticmethod
+    def cartesian(A: list, B: list) -> list:
+        def _cartesian(A, B):
+            for i in A:
+                for j in B:
+                    yield A[i], B[j]
+
+        return list(_cartesian(A, B))
+
+    @staticmethod
+    def is_substring(s: str, S: str) -> bool:
+        return s in S
+
+    @staticmethod
+    def alphabetic_string(s: str) -> str:
+        return ''.join(sorted(s))
+
+    @staticmethod
+    def ping():
+        print('Server has been pinged!')
+
+    @staticmethod
+    def sping(s: str):
+        print(f'New ping: {s}')
+
+    @staticmethod
+    def time_on_earth() -> str:
+        return str(datetime.now())
+
+    def get_methods(self):
+        return [(func, getattr(self, func).__annotations__) for func in dir(self) if callable(getattr(self, func)) and not func.startswith('_')]
+
 
 if __name__ == '__main__':
 
-    a = Server()
+    import sys
+
+    _, h, p, *_ = sys.argv
+
+    a = Server(host=h, port=int(p))

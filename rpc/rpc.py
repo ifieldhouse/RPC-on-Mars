@@ -1,29 +1,24 @@
-from socket import socket
 import pickle
-import textwrap
+from socket import socket
 
 from .exceptions import *
 
 
-def rpc():
-
-    return RPC()
-
-
 class RPC:
 
-    def __init__(self, host='localhost', port=33000):
-        ADDR = (host, port)
-        # BUFSIZ = 1024
+    def __init__(self, host='localhost', ports=range(30000, 30011)):
 
-        self.state = 1
-        self.socket = socket()
-        try:
-            self.socket.connect(ADDR)
-        except ConnectionRefusedError:
-            pass
+        for port in ports:
+            ADDR = (host, port)
 
-        self.clients = {}
+            self.state = 1
+            self.socket = socket()
+            try:
+                self.socket.connect(ADDR)
+            except ConnectionRefusedError:
+                continue
+            else:
+                break
 
     def send(self, msg):
         msg = pickle.dumps(msg)
@@ -33,88 +28,31 @@ class RPC:
         resp = get_all_data(self.socket)
         return resp['ok'], resp
 
-    def add(self, a, b):
-        msg = {'func': 'add', 'a': a, 'b': b}
-        self.send(msg)
+    def __getattr__(self, func):
+        def method(*args, **kwargs):
+            msg = {'func': func, 'data': {'args': args, 'kwargs': kwargs}}
+            self.send(msg)
 
-        ok, resp = self.recv()
-        if not ok:
-            raise UnavailableFunction
+            ok, resp = self.recv()
+            if not ok:
+                raise UnavailableFunction
 
-        return resp['data']
+            return resp['data']
+        return method
 
-    def get_logs(self):
-        msg = {'func': 'get_logs'}
-        self.send(msg)
+    def __str__(self):
+        methods = self.get_methods()
 
-        ok, resp = self.recv()
-        if not ok:
-            raise UnavailableFunction
+        all_text = ''
+        for method in methods:
+            f, kw = method
 
-        return resp['data']
+            text = f"{kw.pop('return').__name__} {f}" if 'return' in kw else f'void {f}'
+            text += f"({', '.join(f'{v.__name__} {k}' for k, v in kw.items())})"
 
-    def write_to_log(self, log):
-        msg = {'func': 'write_to_log', 'log': log}
-        self.send(msg)
+            all_text += f'{text}\n'
 
-        ok, resp = self.recv()
-        if not ok:
-            e = resp['data']['error']
-            if e == 'AnonymousUser':
-                raise AnonymousUser
-
-    def write_to_client_log(self, target, log):
-        msg = {'func': 'write_to_client_log', 'user': target, 'log': log}
-        self.send(msg)
-
-        ok, resp = self.recv()
-        if not ok:
-            e = resp['data']['error']
-            if e == 'AnonymousUser':
-                raise AnonymousUser
-            elif e == 'AnonymousRecipient':
-                raise AnonymousRecipient
-
-    def set_name(self, name):
-        msg = {'func': 'set_name', 'name': name}
-        self.send(msg)
-
-        ok, resp = self.recv()
-        if not ok:
-            e = resp['data']['error']
-            if e == 'AlreadyExistingName':
-                raise AlreadyExistingName
-
-    def get_users(self):
-        msg = {'func': 'get_users'}
-        self.send(msg)
-
-        ok, resp = self.recv()
-
-        if not ok:
-            raise UnavailableFunction
-
-        return resp['data']
-
-    def get_my_logs(self, user):
-        msg = {'func': 'get_my_logs', 'user': user}
-        self.send(msg)
-
-        ok, resp = self.recv()
-
-        if not ok:
-            e = resp['data']['error']
-            if e == 'AnonymousUser':
-                raise AnonymousUser
-
-        return resp['data']
-
-    def __repr__(self):
-        text = """
-            Available functions:
-            int add(int a, int b): return a + b
-            """
-        return textwrap.dedent(text)
+        return all_text
 
 
 def get_all_data(socket):
